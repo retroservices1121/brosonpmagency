@@ -165,7 +165,10 @@ async def _show_pending_payouts(query, context):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("Mark Paid", callback_data=f"adm:mark_paid:{a['id']}")]
         ])
-        await query.message.reply_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        try:
+            await query.message.reply_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=keyboard)
 
     await query.edit_message_text(f"Found {len(unpaid)} pending payout(s) (shown above).")
 
@@ -210,10 +213,20 @@ async def _confirm_payment(query, context, campaign_id):
         )
         return
 
-    await query.edit_message_text(f"Campaign #{campaign_id} is now LIVE!")
-
     # Post to announcement channel
-    await announce_campaign(context.bot, campaign)
+    channel_error = await announce_campaign(context.bot, campaign)
+
+    if channel_error:
+        await query.edit_message_text(
+            f"Campaign #{campaign_id} is now LIVE!\n\n"
+            f"Channel post failed: {channel_error}\n"
+            "Make sure the bot is an admin of the channel."
+        )
+    else:
+        await query.edit_message_text(
+            f"Campaign #{campaign_id} is now LIVE!\n"
+            "Announced in channel."
+        )
 
     # Notify the customer
     try:

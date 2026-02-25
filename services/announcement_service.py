@@ -11,11 +11,14 @@ from handlers.common import format_cents
 logger = logging.getLogger(__name__)
 
 
-async def announce_campaign(bot: Bot, campaign: dict):
-    """Post a campaign announcement to the channel with an Accept button."""
+async def announce_campaign(bot: Bot, campaign: dict) -> str | None:
+    """Post a campaign announcement to the channel with an Accept button.
+
+    Returns None on success, or an error message string on failure.
+    """
     if not ANNOUNCEMENT_CHANNEL_ID:
         logger.info("No ANNOUNCEMENT_CHANNEL_ID set, skipping announcement for campaign #%d", campaign["id"])
-        return
+        return "ANNOUNCEMENT_CHANNEL_ID not configured — channel post skipped."
 
     tiers = get_all_tiers()
     tier = tiers.get(campaign["service_type"], (campaign["service_type"],))
@@ -48,9 +51,12 @@ async def announce_campaign(bot: Bot, campaign: dict):
             reply_markup=keyboard,
         )
         set_announcement_message_id(campaign["id"], str(msg.message_id))
-        logger.info("Announced campaign #%d in channel", campaign["id"])
+        logger.info("Announced campaign #%d in channel (ID: %s)", campaign["id"], ANNOUNCEMENT_CHANNEL_ID)
+        return None
     except Exception as e:
-        logger.error("Failed to announce campaign #%d: %s", campaign["id"], e)
+        error_msg = f"Failed to post to channel (ID: {ANNOUNCEMENT_CHANNEL_ID}): {e}"
+        logger.error("Campaign #%d: %s", campaign["id"], error_msg)
+        return error_msg
 
 
 async def update_announcement(bot: Bot, campaign: dict):

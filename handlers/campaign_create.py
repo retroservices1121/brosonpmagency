@@ -323,7 +323,11 @@ async def confirm_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             "You'll be notified when it goes live."
         )
 
-    await query.edit_message_text(payment_msg, parse_mode="Markdown")
+    try:
+        await query.edit_message_text(payment_msg, parse_mode="Markdown")
+    except Exception:
+        # Markdown failed, send without formatting
+        await query.edit_message_text(payment_msg)
 
     # Notify admins with inline confirm button
     admin_keyboard = InlineKeyboardMarkup([
