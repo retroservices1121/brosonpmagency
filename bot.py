@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from config import TELEGRAM_BOT_TOKEN
 from db.migrations import run_migrations
-from handlers import registration, campaign_create, campaign_browse, campaign_submit, campaign_dashboard, admin
+from handlers import registration, campaign_create, campaign_browse, campaign_submit, campaign_dashboard, admin, pricing
 from handlers.common import is_admin
 from services.campaign_service import expire_campaigns
 
@@ -44,6 +44,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_admin(user):
         lines.append("\nAdmin commands:")
         lines.append("/admin — Admin panel")
+        lines.append("/pricing — Manage service pricing")
         lines.append("/export — Export data as CSV")
 
     await update.message.reply_text("\n".join(lines))
@@ -60,6 +61,7 @@ async def post_init(application):
         BotCommand("mywork", "View accepted work (KOL)"),
         BotCommand("submit", "Submit proof of work (KOL)"),
         BotCommand("admin", "Admin panel"),
+        BotCommand("pricing", "Manage pricing (Admin)"),
         BotCommand("export", "Export data (Admin)"),
         BotCommand("cancel", "Cancel current operation"),
     ]
@@ -88,6 +90,7 @@ def main():
     app.add_handler(registration.get_conversation_handler())
     app.add_handler(campaign_create.get_conversation_handler())
     app.add_handler(campaign_submit.get_conversation_handler())
+    app.add_handler(pricing.get_conversation_handler())
 
     # --- Standalone command handlers ---
     for handler in campaign_browse.get_handlers():

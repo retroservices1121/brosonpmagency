@@ -178,6 +178,35 @@ def run_migrations():
     _add_column_if_missing(cur, "campaign_acceptances", "payout_status", "TEXT DEFAULT 'unpaid'", pg)
     _add_column_if_missing(cur, "campaign_acceptances", "paid_at", "TIMESTAMP", pg)
 
+    # ---- service_tiers table (admin-editable pricing) ----
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS service_tiers (
+            key TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            per_kol_rate INTEGER NOT NULL,
+            min_kols INTEGER NOT NULL,
+            max_kols INTEGER NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        )
+    """)
+
+    # Seed defaults (only inserts rows that don't exist yet)
+    from config import SERVICE_TIERS as _defaults
+    p = "%s" if pg else "?"
+    for key, (name, rate, mn, mx) in _defaults.items():
+        if pg:
+            cur.execute(
+                f"INSERT INTO service_tiers (key, display_name, per_kol_rate, min_kols, max_kols) "
+                f"VALUES ({p},{p},{p},{p},{p}) ON CONFLICT (key) DO NOTHING",
+                (key, name, rate, mn, mx),
+            )
+        else:
+            cur.execute(
+                f"INSERT OR IGNORE INTO service_tiers (key, display_name, per_kol_rate, min_kols, max_kols) "
+                f"VALUES ({p},{p},{p},{p},{p})",
+                (key, name, rate, mn, mx),
+            )
+
     conn.commit()
     conn.close()
     logger.info("Database migrations complete.")

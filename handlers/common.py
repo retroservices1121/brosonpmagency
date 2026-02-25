@@ -6,9 +6,10 @@ from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import ADMIN_TELEGRAM_IDS, ADMIN_USERNAME, SERVICE_TIERS
+from config import ADMIN_TELEGRAM_IDS, ADMIN_USERNAME
 from db.kol_repo import get_kol
 from db.customer_repo import get_customer
+from db.tier_repo import get_all_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,8 @@ def format_cents(cents: int) -> str:
 
 def format_service_type(service_type: str) -> str:
     """Get display name for a service type."""
-    tier = SERVICE_TIERS.get(service_type)
+    tiers = get_all_tiers()
+    tier = tiers.get(service_type)
     return tier[0] if tier else service_type
 
 

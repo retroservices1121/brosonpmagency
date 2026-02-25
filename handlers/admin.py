@@ -5,7 +5,6 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
-from config import SERVICE_TIERS
 from db.campaign_repo import get_campaign, get_campaigns_by_status, get_all_campaigns
 from db.acceptance_repo import get_pending_verifications, get_acceptances_for_campaign, get_unpaid_verified, mark_paid, get_acceptance_by_id
 from handlers.common import (

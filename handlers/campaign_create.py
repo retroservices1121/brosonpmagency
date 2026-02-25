@@ -17,13 +17,13 @@ from telegram.ext import (
 )
 
 from config import (
-    SERVICE_TIERS,
     SERVICES_REQUIRING_TARGET,
     SERVICES_REQUIRING_TALKING_POINTS,
     ADMIN_TELEGRAM_IDS,
     PAYMENT_WALLET_ADDRESS,
     PAYMENT_NETWORK,
 )
+from db.tier_repo import get_all_tiers
 from handlers.common import require_customer, format_cents, format_service_type
 from services.campaign_service import create_campaign, calculate_pricing
 
@@ -48,8 +48,9 @@ logger = logging.getLogger(__name__)
 async def newcampaign(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Entry point: show service type selector."""
     context.user_data["campaign"] = {}
+    tiers = get_all_tiers()
     buttons = []
-    for key, (name, rate, _min, _max) in SERVICE_TIERS.items():
+    for key, (name, rate, _min, _max) in tiers.items():
         buttons.append([InlineKeyboardButton(
             f"{name} — {format_cents(rate)}/KOL",
             callback_data=f"cc_svc:{key}",
@@ -68,7 +69,8 @@ async def service_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     service_type = query.data.split(":")[1]
     context.user_data["campaign"]["service_type"] = service_type
 
-    tier = SERVICE_TIERS[service_type]
+    tiers = get_all_tiers()
+    tier = tiers[service_type]
     await query.edit_message_text(
         f"Service: {tier[0]} ({format_cents(tier[1])}/KOL)\n\n"
         "What is your project name?"
@@ -191,7 +193,8 @@ async def media_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data["campaign"]["media_file_id"] = file_id
 
     service_type = context.user_data["campaign"]["service_type"]
-    tier = SERVICE_TIERS[service_type]
+    tiers = get_all_tiers()
+    tier = tiers[service_type]
     await update.message.reply_text(
         f"How many KOLs do you want? (min: {tier[2]}, max: {tier[3]})"
     )
@@ -201,7 +204,8 @@ async def media_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def skip_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["campaign"]["media_file_id"] = None
     service_type = context.user_data["campaign"]["service_type"]
-    tier = SERVICE_TIERS[service_type]
+    tiers = get_all_tiers()
+    tier = tiers[service_type]
     await update.message.reply_text(
         f"How many KOLs do you want? (min: {tier[2]}, max: {tier[3]})"
     )
@@ -211,7 +215,8 @@ async def skip_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def kol_count_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     service_type = context.user_data["campaign"]["service_type"]
-    tier = SERVICE_TIERS[service_type]
+    tiers = get_all_tiers()
+    tier = tiers[service_type]
     min_kols, max_kols = tier[2], tier[3]
 
     try:

@@ -2,7 +2,8 @@
 import logging
 from datetime import datetime
 
-from config import SERVICE_TIERS, PLATFORM_FEE_PERCENT
+from config import PLATFORM_FEE_PERCENT
+from db.tier_repo import get_all_tiers
 from db import campaign_repo
 
 logger = logging.getLogger(__name__)
@@ -10,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 def calculate_pricing(service_type: str, kol_count: int) -> dict:
     """Calculate campaign cost. Returns dict with per_kol_rate, platform_fee, total_cost (all in cents)."""
-    tier = SERVICE_TIERS[service_type]
+    tiers = get_all_tiers()
+    tier = tiers[service_type]
     per_kol_rate = tier[1]
     subtotal = per_kol_rate * kol_count
     platform_fee = int(subtotal * PLATFORM_FEE_PERCENT / 100)

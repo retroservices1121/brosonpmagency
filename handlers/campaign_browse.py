@@ -4,7 +4,6 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
-from config import SERVICE_TIERS
 from db.campaign_repo import get_campaign, get_live_campaigns
 from db.kol_repo import get_kol
 from handlers.common import format_cents, format_service_type

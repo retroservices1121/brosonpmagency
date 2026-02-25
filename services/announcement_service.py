@@ -3,7 +3,8 @@ import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
 
-from config import ANNOUNCEMENT_CHANNEL_ID, SERVICE_TIERS
+from config import ANNOUNCEMENT_CHANNEL_ID
+from db.tier_repo import get_all_tiers
 from db.campaign_repo import set_announcement_message_id
 from handlers.common import format_cents
 
@@ -16,7 +17,8 @@ async def announce_campaign(bot: Bot, campaign: dict):
         logger.info("No ANNOUNCEMENT_CHANNEL_ID set, skipping announcement for campaign #%d", campaign["id"])
         return
 
-    tier = SERVICE_TIERS.get(campaign["service_type"], (campaign["service_type"],))
+    tiers = get_all_tiers()
+    tier = tiers.get(campaign["service_type"], (campaign["service_type"],))
     tier_name = tier[0]
     remaining = campaign["kol_count"] - campaign["accepted_count"]
 
@@ -56,7 +58,8 @@ async def update_announcement(bot: Bot, campaign: dict):
     if not ANNOUNCEMENT_CHANNEL_ID or not campaign.get("announcement_message_id"):
         return
 
-    tier = SERVICE_TIERS.get(campaign["service_type"], (campaign["service_type"],))
+    tiers = get_all_tiers()
+    tier = tiers.get(campaign["service_type"], (campaign["service_type"],))
     tier_name = tier[0]
     remaining = campaign["kol_count"] - campaign["accepted_count"]
 
