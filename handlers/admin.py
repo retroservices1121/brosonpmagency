@@ -7,7 +7,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
 from config import SERVICE_TIERS
 from db.campaign_repo import get_campaign, get_campaigns_by_status, get_all_campaigns
-from db.acceptance_repo import get_pending_verifications, get_acceptances_for_campaign
+from db.acceptance_repo import get_pending_verifications, get_acceptances_for_campaign, get_unpaid_verified, mark_paid, get_acceptance_by_id
 from handlers.common import (
     is_admin,
     require_admin,
@@ -28,6 +28,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show admin panel with action buttons."""
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Pending Payments", callback_data="adm:pending")],
+        [InlineKeyboardButton("Pending Payouts", callback_data="adm:payouts")],
         [InlineKeyboardButton("Campaign Overview", callback_data="adm:overview")],
         [InlineKeyboardButton("Manual Verifications", callback_data="adm:verify")],
     ])
@@ -48,6 +49,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "adm:pending":
         await _show_pending_payments(query, context)
 
+    elif action == "adm:payouts":
+        await _show_pending_payouts(query, context)
+
     elif action == "adm:overview":
         await _show_overview(query)
 
@@ -57,6 +61,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action.startswith("adm:pay:"):
         campaign_id = int(action.split(":")[2])
         await _confirm_payment(query, context, campaign_id)
+
+    elif action.startswith("adm:mark_paid:"):
+        acceptance_id = int(action.split(":")[2])
+        await _mark_kol_paid(query, context, acceptance_id)
 
     elif action.startswith("adm:v_approve:"):
         acceptance_id = int(action.split(":")[2])
@@ -138,6 +146,61 @@ async def _show_pending_verifications(query, context):
         await query.message.reply_text(text, reply_markup=keyboard)
 
     await query.edit_message_text(f"Found {len(subs)} submission(s) pending review (shown above).")
+
+
+async def _show_pending_payouts(query, context):
+    unpaid = get_unpaid_verified()
+    if not unpaid:
+        await query.edit_message_text("No pending KOL payouts.")
+        return
+
+    for a in unpaid:
+        text = (
+            f"Payout — Submission #{a['id']}\n"
+            f"Campaign #{a['campaign_id']}: {a['project_name']}\n"
+            f"KOL: {a['kol_name']} (@{a['x_account']})\n"
+            f"Service: {format_service_type(a['service_type'])}\n"
+            f"Amount: {format_cents(a['per_kol_rate'])} USDC\n"
+            f"Wallet: `{a['kol_wallet']}`"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Mark Paid", callback_data=f"adm:mark_paid:{a['id']}")]
+        ])
+        await query.message.reply_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+    await query.edit_message_text(f"Found {len(unpaid)} pending payout(s) (shown above).")
+
+
+async def _mark_kol_paid(query, context, acceptance_id):
+    acceptance = get_acceptance_by_id(acceptance_id)
+    if not acceptance:
+        await query.edit_message_text(f"Acceptance #{acceptance_id} not found.")
+        return
+
+    mark_paid(acceptance_id)
+    campaign = get_campaign(acceptance["campaign_id"])
+    project_name = campaign["project_name"] if campaign else "Unknown"
+    per_kol_rate = campaign["per_kol_rate"] if campaign else 0
+
+    await query.edit_message_text(
+        f"Submission #{acceptance_id} marked as PAID!\n"
+        f"({format_cents(per_kol_rate)} USDC to KOL {acceptance['kol_telegram_id']})"
+    )
+
+    # Notify KOL
+    try:
+        await context.bot.send_message(
+            chat_id=acceptance["kol_telegram_id"],
+            text=(
+                f"Payment sent!\n\n"
+                f"Campaign #{acceptance['campaign_id']}: {project_name}\n"
+                f"Amount: {format_cents(per_kol_rate)} USDC\n\n"
+                "The payment has been sent to your registered wallet. "
+                "Thank you for your work!"
+            ),
+        )
+    except Exception as e:
+        logger.warning("Could not notify KOL %s about payment: %s", acceptance["kol_telegram_id"], e)
 
 
 async def _confirm_payment(query, context, campaign_id):

@@ -20,6 +20,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # --- X API ---
 X_API_BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN", "")
 
+# --- Payment ---
+PAYMENT_WALLET_ADDRESS = os.getenv("PAYMENT_WALLET_ADDRESS", "")
+PAYMENT_NETWORK = os.getenv("PAYMENT_NETWORK", "Base")
+
 # --- App constants ---
 CHANNEL_LINK = "https://t.me/+UV2UD42DM5gwZjFh"
 POSTER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "poster.png")

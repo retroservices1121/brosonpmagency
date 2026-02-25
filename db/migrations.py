@@ -174,6 +174,10 @@ def run_migrations():
             )
         """)
 
+    # ---- new columns on campaign_acceptances ----
+    _add_column_if_missing(cur, "campaign_acceptances", "payout_status", "TEXT DEFAULT 'unpaid'", pg)
+    _add_column_if_missing(cur, "campaign_acceptances", "paid_at", "TIMESTAMP", pg)
+
     conn.commit()
     conn.close()
     logger.info("Database migrations complete.")

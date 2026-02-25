@@ -21,6 +21,8 @@ from config import (
     SERVICES_REQUIRING_TARGET,
     SERVICES_REQUIRING_TALKING_POINTS,
     ADMIN_TELEGRAM_IDS,
+    PAYMENT_WALLET_ADDRESS,
+    PAYMENT_NETWORK,
 )
 from handlers.common import require_customer, format_cents, format_service_type
 from services.campaign_service import create_campaign, calculate_pricing
@@ -298,27 +300,48 @@ async def confirm_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     campaign_id = create_campaign(c)
     pricing = calculate_pricing(c["service_type"], c["kol_count"])
 
-    await query.edit_message_text(
+    payment_msg = (
         f"Campaign #{campaign_id} created!\n\n"
         f"Status: Pending Payment\n"
-        f"Total: {format_cents(pricing['total_cost'])}\n\n"
-        "An admin will confirm your payment and activate the campaign.\n"
-        "You'll be notified when it goes live."
+        f"Total: {format_cents(pricing['total_cost'])} USDC\n\n"
     )
+    if PAYMENT_WALLET_ADDRESS:
+        payment_msg += (
+            f"Please send exactly {format_cents(pricing['total_cost'])} USDC to:\n\n"
+            f"`{PAYMENT_WALLET_ADDRESS}`\n"
+            f"Network: {PAYMENT_NETWORK}\n\n"
+            "Once payment is received, an admin will activate your campaign.\n"
+            "You'll be notified when it goes live."
+        )
+    else:
+        payment_msg += (
+            "An admin will reach out with payment details and activate the campaign.\n"
+            "You'll be notified when it goes live."
+        )
 
-    # Notify admins
+    await query.edit_message_text(payment_msg, parse_mode="Markdown")
+
+    # Notify admins with inline confirm button
+    admin_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Confirm Payment", callback_data=f"adm:pay:{campaign_id}"),
+            InlineKeyboardButton("Cancel", callback_data=f"adm:cancel:{campaign_id}"),
+        ]
+    ])
     for admin_id in ADMIN_TELEGRAM_IDS:
         try:
             await context.bot.send_message(
                 chat_id=admin_id,
                 text=(
-                    f"New campaign #{campaign_id} created!\n\n"
+                    f"New campaign #{campaign_id} awaiting payment!\n\n"
                     f"Customer: {user.first_name} (ID: {user.id})\n"
                     f"Project: {c['project_name']}\n"
                     f"Service: {format_service_type(c['service_type'])}\n"
-                    f"Total: {format_cents(pricing['total_cost'])}\n\n"
-                    "Use /admin to confirm payment."
+                    f"KOLs: {c['kol_count']}\n"
+                    f"Total: {format_cents(pricing['total_cost'])} USDC\n\n"
+                    "Confirm once payment is received:"
                 ),
+                reply_markup=admin_keyboard,
             )
         except Exception as e:
             logger.warning("Could not notify admin %s: %s", admin_id, e)
