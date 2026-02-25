@@ -330,4 +330,5 @@ def get_conversation_handler() -> ConversationHandler:
             CommandHandler("cancel", cancel),
             CommandHandler("skip", skip),
         ],
+        allow_reentry=True,
     )

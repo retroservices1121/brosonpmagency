@@ -114,4 +114,5 @@ def get_conversation_handler() -> ConversationHandler:
             ENTER_TWEET_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, tweet_url_received)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
     )

@@ -392,4 +392,5 @@ def get_conversation_handler() -> ConversationHandler:
             CONFIRM: [CallbackQueryHandler(confirm_campaign, pattern="^cc_")],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
     )
