@@ -6,7 +6,9 @@ load_dotenv()
 
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-ANNOUNCEMENT_CHANNEL_ID = os.getenv("ANNOUNCEMENT_CHANNEL_ID", "")
+_channel_id_raw = os.getenv("ANNOUNCEMENT_CHANNEL_ID", "")
+# Channel IDs are negative integers (e.g. -1001234567890); convert if numeric
+ANNOUNCEMENT_CHANNEL_ID = int(_channel_id_raw) if _channel_id_raw.lstrip("-").isdigit() else _channel_id_raw
 ADMIN_TELEGRAM_IDS = [
     int(x.strip())
     for x in os.getenv("ADMIN_TELEGRAM_IDS", "").split(",")

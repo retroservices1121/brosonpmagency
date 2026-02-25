@@ -16,9 +16,10 @@ from telegram.ext import (
     filters,
 )
 
-from config import CHANNEL_LINK, POSTER_PATH, ADMIN_USERNAME, ADMIN_TELEGRAM_IDS, X_API_BEARER_TOKEN
+from config import CHANNEL_LINK, POSTER_PATH, X_API_BEARER_TOKEN
 from db.kol_repo import save_kol, get_kol, update_kol_verification
 from db.customer_repo import save_customer
+from handlers.common import notify_admins
 from services import x_api
 
 logger = logging.getLogger(__name__)
@@ -276,19 +277,15 @@ async def _finish_customer(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     )
 
     # Alert admins
-    for admin_id in ADMIN_TELEGRAM_IDS:
-        try:
-            await context.bot.send_message(
-                chat_id=admin_id,
-                text=(
-                    "New customer registration!\n\n"
-                    f"Name: {name}\n"
-                    f"Project X Account: @{project_x}\n"
-                    f"Telegram: {telegram_handle}"
-                ),
-            )
-        except Exception as e:
-            logger.warning("Could not notify admin %s: %s", admin_id, e)
+    await notify_admins(
+        context.bot,
+        text=(
+            "New customer registration!\n\n"
+            f"Name: {name}\n"
+            f"Project X Account: @{project_x}\n"
+            f"Telegram: {telegram_handle}"
+        ),
+    )
 
     return ConversationHandler.END
 

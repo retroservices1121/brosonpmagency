@@ -67,6 +67,27 @@ def require_kol(func):
     return wrapper
 
 
+async def notify_admins(bot, text: str, reply_markup=None):
+    """Send a message to all admins. Tries ADMIN_TELEGRAM_IDS first, falls back to @ADMIN_USERNAME."""
+    sent = False
+    for admin_id in ADMIN_TELEGRAM_IDS:
+        try:
+            await bot.send_message(chat_id=admin_id, text=text, reply_markup=reply_markup)
+            sent = True
+        except Exception as e:
+            logger.warning("Could not notify admin %s: %s", admin_id, e)
+
+    if not sent and ADMIN_USERNAME:
+        try:
+            await bot.send_message(chat_id=f"@{ADMIN_USERNAME}", text=text, reply_markup=reply_markup)
+            sent = True
+        except Exception as e:
+            logger.warning("Could not notify admin @%s: %s", ADMIN_USERNAME, e)
+
+    if not sent:
+        logger.error("No admins could be notified! Set ADMIN_TELEGRAM_IDS in .env")
+
+
 def format_cents(cents: int) -> str:
     """Format cents as dollar string: 1500 → '$15.00'."""
     return f"${cents / 100:.2f}"

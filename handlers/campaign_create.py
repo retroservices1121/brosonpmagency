@@ -19,12 +19,11 @@ from telegram.ext import (
 from config import (
     SERVICES_REQUIRING_TARGET,
     SERVICES_REQUIRING_TALKING_POINTS,
-    ADMIN_TELEGRAM_IDS,
     PAYMENT_WALLET_ADDRESS,
     PAYMENT_NETWORK,
 )
 from db.tier_repo import get_all_tiers
-from handlers.common import require_customer, format_cents, format_service_type
+from handlers.common import require_customer, format_cents, format_service_type, notify_admins
 from services.campaign_service import create_campaign, calculate_pricing
 
 logger = logging.getLogger(__name__)
@@ -333,23 +332,19 @@ async def confirm_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             InlineKeyboardButton("Cancel", callback_data=f"adm:cancel:{campaign_id}"),
         ]
     ])
-    for admin_id in ADMIN_TELEGRAM_IDS:
-        try:
-            await context.bot.send_message(
-                chat_id=admin_id,
-                text=(
-                    f"New campaign #{campaign_id} awaiting payment!\n\n"
-                    f"Customer: {user.first_name} (ID: {user.id})\n"
-                    f"Project: {c['project_name']}\n"
-                    f"Service: {format_service_type(c['service_type'])}\n"
-                    f"KOLs: {c['kol_count']}\n"
-                    f"Total: {format_cents(pricing['total_cost'])} USDC\n\n"
-                    "Confirm once payment is received:"
-                ),
-                reply_markup=admin_keyboard,
-            )
-        except Exception as e:
-            logger.warning("Could not notify admin %s: %s", admin_id, e)
+    await notify_admins(
+        context.bot,
+        text=(
+            f"New campaign #{campaign_id} awaiting payment!\n\n"
+            f"Customer: {user.first_name} (ID: {user.id})\n"
+            f"Project: {c['project_name']}\n"
+            f"Service: {format_service_type(c['service_type'])}\n"
+            f"KOLs: {c['kol_count']}\n"
+            f"Total: {format_cents(pricing['total_cost'])} USDC\n\n"
+            "Confirm once payment is received:"
+        ),
+        reply_markup=admin_keyboard,
+    )
 
     return ConversationHandler.END
 

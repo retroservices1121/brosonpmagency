@@ -4,7 +4,7 @@ import logging
 from telegram import Update, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, ADMIN_TELEGRAM_IDS, ANNOUNCEMENT_CHANNEL_ID
 from db.migrations import run_migrations
 from handlers import registration, campaign_create, campaign_browse, campaign_submit, campaign_dashboard, admin, pricing
 from handlers.common import is_admin
@@ -24,6 +24,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "BrosOnPM Agency Bot\n",
         "/start — Register as KOL or Customer",
         "/help — Show this message",
+        "/myid — Show your Telegram ID",
         "/cancel — Cancel current operation",
     ]
 
@@ -50,11 +51,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 
+async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show the user their Telegram numeric ID (useful for setting ADMIN_TELEGRAM_IDS)."""
+    user = update.effective_user
+    await update.message.reply_text(
+        f"Your Telegram ID: `{user.id}`\n\n"
+        "Add this to ADMIN_TELEGRAM_IDS in .env to get admin access.",
+        parse_mode="Markdown",
+    )
+
+
 async def post_init(application):
     """Set bot commands for the menu button."""
     commands = [
         BotCommand("start", "Register as KOL or Customer"),
         BotCommand("help", "Show available commands"),
+        BotCommand("myid", "Show your Telegram ID"),
         BotCommand("newcampaign", "Create a campaign (Customer)"),
         BotCommand("mycampaigns", "View your campaigns (Customer)"),
         BotCommand("campaigns", "Browse campaigns (KOL)"),
@@ -82,6 +94,18 @@ def main():
             "Create a .env file with your bot token (see .env.example)."
         )
 
+    # Startup warnings for missing config
+    if not ADMIN_TELEGRAM_IDS:
+        logger.warning(
+            "ADMIN_TELEGRAM_IDS not set! Admin DMs will fall back to @username. "
+            "Use /myid in the bot to get your numeric ID, then add it to .env."
+        )
+    if not ANNOUNCEMENT_CHANNEL_ID:
+        logger.warning(
+            "ANNOUNCEMENT_CHANNEL_ID not set! Campaign announcements will be skipped. "
+            "Add the channel's numeric ID to .env (e.g. -1001234567890)."
+        )
+
     run_migrations()
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
@@ -101,6 +125,7 @@ def main():
         app.add_handler(handler)
 
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("myid", myid_command))
 
     # --- Scheduled jobs ---
     job_queue = app.job_queue
