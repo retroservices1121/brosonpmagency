@@ -19,8 +19,8 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Game4Charity")
 # --- Database ---
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# --- X API ---
-X_API_BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN", "")
+# --- X API (via Virtuals GAME) ---
+GAME_TWITTER_ACCESS_TOKEN = os.getenv("GAME_TWITTER_ACCESS_TOKEN", "")
 
 # --- Payment ---
 PAYMENT_WALLET_ADDRESS = os.getenv("PAYMENT_WALLET_ADDRESS", "")

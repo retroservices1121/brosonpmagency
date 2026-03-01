@@ -88,6 +88,26 @@ async def notify_admins(bot, text: str, reply_markup=None):
         logger.error("No admins could be notified! Set ADMIN_TELEGRAM_IDS in .env")
 
 
+async def send_campaign_media(bot, chat_id, media_file_id, caption=None):
+    """Send a campaign's attached media file to a chat.
+
+    Tries photo first, falls back to document (covers video/other files).
+    Returns True if sent, False if no media.
+    """
+    if not media_file_id:
+        return False
+    try:
+        await bot.send_photo(chat_id=chat_id, photo=media_file_id, caption=caption)
+        return True
+    except Exception:
+        try:
+            await bot.send_document(chat_id=chat_id, document=media_file_id, caption=caption)
+            return True
+        except Exception as e:
+            logger.warning("Could not send media %s to %s: %s", media_file_id, chat_id, e)
+            return False
+
+
 def format_cents(cents: int) -> str:
     """Format cents as dollar string: 1500 → '$15.00'."""
     return f"${cents / 100:.2f}"

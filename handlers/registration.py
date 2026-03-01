@@ -16,7 +16,7 @@ from telegram.ext import (
     filters,
 )
 
-from config import CHANNEL_LINK, POSTER_PATH, X_API_BEARER_TOKEN
+from config import CHANNEL_LINK, POSTER_PATH, GAME_TWITTER_ACCESS_TOKEN
 from db.kol_repo import save_kol, get_kol, update_kol_verification
 from db.customer_repo import save_customer
 from handlers.common import notify_admins
@@ -133,7 +133,7 @@ async def kol_wallet_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
     # If X API is configured, offer verification
-    if X_API_BEARER_TOKEN:
+    if GAME_TWITTER_ACCESS_TOKEN:
         code = secrets.token_hex(4).upper()
         context.user_data["verify_code"] = code
         await update.message.reply_text(

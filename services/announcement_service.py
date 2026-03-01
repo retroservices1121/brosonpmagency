@@ -45,6 +45,24 @@ async def announce_campaign(bot: Bot, campaign: dict) -> str | None:
     ])
 
     try:
+        # Send media first if attached
+        if campaign.get("media_file_id"):
+            try:
+                await bot.send_photo(
+                    chat_id=ANNOUNCEMENT_CHANNEL_ID,
+                    photo=campaign["media_file_id"],
+                    caption=f"Media for Campaign #{campaign['id']}"
+                )
+            except Exception:
+                try:
+                    await bot.send_document(
+                        chat_id=ANNOUNCEMENT_CHANNEL_ID,
+                        document=campaign["media_file_id"],
+                        caption=f"Media for Campaign #{campaign['id']}"
+                    )
+                except Exception as me:
+                    logger.warning("Could not send campaign media to channel: %s", me)
+
         msg = await bot.send_message(
             chat_id=ANNOUNCEMENT_CHANNEL_ID,
             text=text,

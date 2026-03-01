@@ -79,7 +79,8 @@ def get_acceptances_for_kol(kol_telegram_id: int):
     p = ph()
     cur.execute(
         f"""
-        SELECT ca.*, c.project_name, c.service_type, c.deadline, c.status as campaign_status
+        SELECT ca.*, c.project_name, c.service_type, c.deadline, c.status as campaign_status,
+               c.target_url, c.talking_points, c.hashtags, c.mentions, c.media_file_id
         FROM campaign_acceptances ca
         JOIN campaigns c ON c.id = ca.campaign_id
         WHERE ca.kol_telegram_id = {p}

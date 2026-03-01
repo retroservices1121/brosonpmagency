@@ -6,7 +6,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
 from db.campaign_repo import get_campaign, get_live_campaigns
 from db.kol_repo import get_kol
-from handlers.common import format_cents, format_service_type
+from handlers.common import format_cents, format_service_type, send_campaign_media
 from services.acceptance_service import accept_campaign, AcceptanceError
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,14 @@ async def browse_campaigns(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("Accept", callback_data=f"accept_campaign:{c['id']}")]
         ])
+
+        # Send attached media if present
+        if c.get("media_file_id"):
+            await send_campaign_media(
+                context.bot, update.effective_chat.id, c["media_file_id"],
+                caption="Campaign media:"
+            )
+
         await update.message.reply_text(text, reply_markup=keyboard)
 
 
@@ -107,6 +115,13 @@ async def accept_campaign_callback(update: Update, context: ContextTypes.DEFAULT
         msg += "\nWhen done, use /submit to submit your tweet URL."
 
         await context.bot.send_message(chat_id=user.id, text=msg)
+
+        # Send campaign media to KOL DM
+        if campaign.get("media_file_id"):
+            await send_campaign_media(
+                context.bot, user.id, campaign["media_file_id"],
+                caption=f"Media for Campaign #{campaign_id}"
+            )
     except Exception as e:
         logger.warning("Could not DM KOL %s: %s", user.id, e)
 
