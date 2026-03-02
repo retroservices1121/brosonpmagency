@@ -33,34 +33,86 @@ def is_configured() -> bool:
 async def get_user_by_username(username: str) -> dict | None:
     """Fetch X user by username. Returns dict with id, name, username, public_metrics.
 
-    Uses search_recent_tweets with ``from:username`` + author expansion
-    because the GAME proxy does not support the /users/by/username endpoint.
+    Tries multiple GAME proxy approaches since not all endpoints are available.
     """
     if not is_configured():
         return None
     username = username.lstrip("@")
-    try:
-        resp = await asyncio.to_thread(
-            _get_client().search_recent_tweets,
-            query=f"from:{username}",
-            max_results=10,
-            expansions=["author_id"],
-            user_fields=["public_metrics"],
-        )
-        # Author data is in resp.includes["users"]
-        includes = getattr(resp, "includes", None) or {}
-        users = includes.get("users", [])
-        if users:
-            user = users[0]
-            return {
-                "id": str(user.id),
-                "name": user.name,
-                "username": user.username,
-                "public_metrics": user.public_metrics,
-            }
-        logger.warning("X API user search returned no results for @%s", username)
-    except Exception as e:
-        logger.error("X API error in get_user_by_username: %s\n%s", e, traceback.format_exc())
+
+    client = _get_client()
+
+    # Approach 1: get_user by username (standard tweepy)
+    for attempt_name, attempt_fn, attempt_kwargs in [
+        ("get_user", client.get_user, dict(username=username, user_fields=["public_metrics"])),
+        ("get_user(no fields)", client.get_user, dict(username=username)),
+        ("get_users", client.get_users, dict(usernames=[username], user_fields=["public_metrics"])),
+        ("get_users(no fields)", client.get_users, dict(usernames=[username])),
+        ("search_recent_tweets", client.search_recent_tweets, dict(
+            query=f"from:{username}", max_results=10,
+            expansions=["author_id"], user_fields=["public_metrics"],
+        )),
+        ("search_recent_tweets(minimal)", client.search_recent_tweets, dict(
+            query=f"from:{username}", max_results=10,
+        )),
+    ]:
+        try:
+            logger.info("Trying %s for @%s ...", attempt_name, username)
+            resp = await asyncio.to_thread(attempt_fn, **attempt_kwargs)
+            logger.info("%s succeeded! resp.data=%s, resp.includes=%s",
+                        attempt_name, type(resp.data).__name__ if resp.data else None,
+                        list(getattr(resp, 'includes', {}).keys()) if getattr(resp, 'includes', None) else None)
+
+            # Handle get_user (singular) — resp.data is a single User
+            if attempt_name.startswith("get_user") and resp.data and not isinstance(resp.data, list):
+                user = resp.data
+                return {
+                    "id": str(user.id),
+                    "name": user.name,
+                    "username": user.username,
+                    "public_metrics": getattr(user, "public_metrics", None),
+                }
+
+            # Handle get_users (plural) — resp.data is a list
+            if attempt_name.startswith("get_users") and resp.data and isinstance(resp.data, list) and len(resp.data) > 0:
+                user = resp.data[0]
+                return {
+                    "id": str(user.id),
+                    "name": user.name,
+                    "username": user.username,
+                    "public_metrics": getattr(user, "public_metrics", None),
+                }
+
+            # Handle search — user info is in includes
+            if attempt_name.startswith("search") and resp.data:
+                includes = getattr(resp, "includes", None) or {}
+                users = includes.get("users", [])
+                if users:
+                    user = users[0]
+                    return {
+                        "id": str(user.id),
+                        "name": user.name,
+                        "username": user.username,
+                        "public_metrics": getattr(user, "public_metrics", None),
+                    }
+                # Search found tweets but no user expansion — extract author_id from tweet
+                tweet = resp.data[0]
+                author_id = getattr(tweet, "author_id", None)
+                if author_id:
+                    return {
+                        "id": str(author_id),
+                        "name": username,
+                        "username": username,
+                        "public_metrics": None,
+                    }
+
+        except Exception as e:
+            resp_text = ""
+            if hasattr(e, "response") and hasattr(e.response, "text"):
+                resp_text = e.response.text[:500]
+            logger.warning("  %s failed: %s %s", attempt_name, e, resp_text)
+            continue
+
+    logger.error("All approaches failed for @%s", username)
     return None
 
 
