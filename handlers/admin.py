@@ -1,4 +1,5 @@
 """Admin panel — /admin, payment confirmation, manual verification, /export, /bulkverify."""
+import asyncio
 import io
 import logging
 
@@ -293,18 +294,28 @@ async def bulk_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("X API is not configured. Cannot verify KOLs.")
         return
 
-    await update.message.reply_text(
-        f"Starting bulk verification for {len(unverified)} KOL(s)..."
+    if not await x_api.is_read_available():
+        await update.message.reply_text("X API read access not available. Cannot verify KOLs.")
+        return
+
+    total = len(unverified)
+    progress_msg = await update.message.reply_text(
+        f"Starting bulk verification for {total} KOL(s)...\n"
+        "This may take a while due to API rate limits (~9s per KOL)."
     )
 
     verified_count = 0
     failed = []
 
-    for kol in unverified:
+    for i, kol in enumerate(unverified):
         x_account = kol.get("x_account", "")
         if not x_account:
             failed.append(f"{kol['name']} — no X account")
             continue
+
+        # Rate limit: ~9 seconds between calls (35 calls / 5 min = 1 per 8.6s)
+        if i > 0:
+            await asyncio.sleep(9)
 
         x_user = await x_api.get_user_by_username(x_account)
         if x_user:
@@ -315,13 +326,27 @@ async def bulk_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             failed.append(f"{kol['name']} (@{x_account}) — not found on X")
 
-    lines = [f"Bulk verification complete: {verified_count}/{len(unverified)} verified."]
+        # Update progress every 5 KOLs
+        if (i + 1) % 5 == 0 or i == total - 1:
+            try:
+                await progress_msg.edit_text(
+                    f"Bulk verification in progress... {i + 1}/{total}\n"
+                    f"Verified: {verified_count} | Failed: {len(failed)}"
+                )
+            except Exception:
+                pass
+
+    lines = [f"Bulk verification complete: {verified_count}/{total} verified."]
     if failed:
         lines.append(f"\nFailed ({len(failed)}):")
         for f_msg in failed:
             lines.append(f"  - {f_msg}")
 
-    await update.message.reply_text("\n".join(lines))
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:3950] + f"\n\n... ({len(failed)} total failures, list truncated)"
+
+    await update.message.reply_text(text)
 
 
 def get_handlers():
