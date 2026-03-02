@@ -1,4 +1,4 @@
-"""Admin panel — /admin, payment confirmation, manual verification, /export."""
+"""Admin panel — /admin, payment confirmation, manual verification, /export, /bulkverify."""
 import io
 import logging
 
@@ -7,6 +7,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
 from db.campaign_repo import get_campaign, get_campaigns_by_status, get_all_campaigns
 from db.acceptance_repo import get_pending_verifications, get_acceptances_for_campaign, get_unpaid_verified, mark_paid, get_acceptance_by_id
+from db.kol_repo import get_all_kols, update_kol_verification
 from handlers.common import (
     is_admin,
     require_admin,
@@ -18,6 +19,7 @@ from handlers.common import (
 from services.campaign_service import activate_campaign, cancel_campaign
 from services.announcement_service import announce_campaign
 from services.verification_service import manually_verify, manually_reject
+from services import x_api
 
 logger = logging.getLogger(__name__)
 
@@ -277,9 +279,55 @@ async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_document(document=buf_cust, caption="Customers registration export")
 
 
+@require_admin
+async def bulk_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Look up all unverified KOLs on X and update their profiles."""
+    kols = get_all_kols()
+    unverified = [k for k in kols if not k.get("is_verified")]
+
+    if not unverified:
+        await update.message.reply_text("All KOLs are already verified!")
+        return
+
+    if not x_api.is_configured():
+        await update.message.reply_text("X API is not configured. Cannot verify KOLs.")
+        return
+
+    await update.message.reply_text(
+        f"Starting bulk verification for {len(unverified)} KOL(s)..."
+    )
+
+    verified_count = 0
+    failed = []
+
+    for kol in unverified:
+        x_account = kol.get("x_account", "")
+        if not x_account:
+            failed.append(f"{kol['name']} — no X account")
+            continue
+
+        x_user = await x_api.get_user_by_username(x_account)
+        if x_user:
+            x_user_id = x_user["id"]
+            followers = (x_user.get("public_metrics") or {}).get("followers_count", 0)
+            update_kol_verification(kol["telegram_id"], x_user_id, followers, True)
+            verified_count += 1
+        else:
+            failed.append(f"{kol['name']} (@{x_account}) — not found on X")
+
+    lines = [f"Bulk verification complete: {verified_count}/{len(unverified)} verified."]
+    if failed:
+        lines.append(f"\nFailed ({len(failed)}):")
+        for f_msg in failed:
+            lines.append(f"  - {f_msg}")
+
+    await update.message.reply_text("\n".join(lines))
+
+
 def get_handlers():
     return [
         CommandHandler("admin", admin_panel),
         CommandHandler("export", export),
+        CommandHandler("bulkverify", bulk_verify),
         CallbackQueryHandler(admin_callback, pattern=r"^adm:"),
     ]

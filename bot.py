@@ -46,6 +46,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("\nAdmin commands:")
         lines.append("/admin — Admin panel")
         lines.append("/pricing — Manage service pricing")
+        lines.append("/bulkverify — Verify all KOLs via X API")
         lines.append("/export — Export data as CSV")
 
     await update.message.reply_text("\n".join(lines))
@@ -74,6 +75,7 @@ async def post_init(application):
         BotCommand("submit", "Submit proof of work (KOL)"),
         BotCommand("admin", "Admin panel"),
         BotCommand("pricing", "Manage pricing (Admin)"),
+        BotCommand("bulkverify", "Verify all KOLs via X (Admin)"),
         BotCommand("export", "Export data (Admin)"),
         BotCommand("cancel", "Cancel current operation"),
     ]
