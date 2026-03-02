@@ -6,6 +6,7 @@ None so the bot can function without X API access (manual admin review).
 import asyncio
 import logging
 import re
+import traceback
 
 from config import GAME_TWITTER_ACCESS_TOKEN
 
@@ -19,6 +20,8 @@ def _get_client():
     global _client
     if _client is None:
         from virtuals_tweepy import Client
+        logger.info("Initializing Virtuals tweepy Client (token starts with: %s...)",
+                     GAME_TWITTER_ACCESS_TOKEN[:8] if len(GAME_TWITTER_ACCESS_TOKEN) > 8 else "???")
         _client = Client(game_twitter_access_token=GAME_TWITTER_ACCESS_TOKEN)
     return _client
 
@@ -38,6 +41,9 @@ async def get_user_by_username(username: str) -> dict | None:
             username=username,
             user_fields=["public_metrics"],
         )
+        logger.info("get_user response: data=%s, errors=%s",
+                    type(resp.data).__name__ if resp.data else None,
+                    getattr(resp, 'errors', None))
         if resp.data:
             user = resp.data
             return {
@@ -46,9 +52,9 @@ async def get_user_by_username(username: str) -> dict | None:
                 "username": user.username,
                 "public_metrics": user.public_metrics,
             }
-        logger.warning("X API user lookup returned no data for @%s", username)
+        logger.warning("X API user lookup returned no data for @%s — full response: %s", username, resp)
     except Exception as e:
-        logger.error("X API error: %s", e)
+        logger.error("X API error in get_user_by_username: %s\n%s", e, traceback.format_exc())
     return None
 
 
