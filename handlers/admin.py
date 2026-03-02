@@ -301,9 +301,21 @@ async def bulk_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = len(unverified)
     progress_msg = await update.message.reply_text(
         f"Starting bulk verification for {total} KOL(s)...\n"
-        "This may take a while due to API rate limits (~9s per KOL)."
+        "This may take a while due to API rate limits (~9s per KOL).\n"
+        "Other bot commands will continue to work normally."
     )
 
+    # Run in background so the bot can process other commands
+    chat_id = update.effective_chat.id
+    context.application.create_task(
+        _run_bulk_verify(context.bot, chat_id, progress_msg, unverified),
+        update=update,
+    )
+
+
+async def _run_bulk_verify(bot, chat_id, progress_msg, unverified):
+    """Background task for bulk KOL verification."""
+    total = len(unverified)
     verified_count = 0
     failed = []
 
@@ -346,7 +358,7 @@ async def bulk_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(text) > 4000:
         text = text[:3950] + f"\n\n... ({len(failed)} total failures, list truncated)"
 
-    await update.message.reply_text(text)
+    await bot.send_message(chat_id=chat_id, text=text)
 
 
 def get_handlers():
