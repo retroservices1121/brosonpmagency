@@ -31,28 +31,34 @@ def is_configured() -> bool:
 
 
 async def get_user_by_username(username: str) -> dict | None:
-    """Fetch X user by username. Returns dict with id, name, username, public_metrics."""
+    """Fetch X user by username. Returns dict with id, name, username, public_metrics.
+
+    Uses search_recent_tweets with ``from:username`` + author expansion
+    because the GAME proxy does not support the /users/by/username endpoint.
+    """
     if not is_configured():
         return None
     username = username.lstrip("@")
     try:
         resp = await asyncio.to_thread(
-            _get_client().get_user,
-            username=username,
+            _get_client().search_recent_tweets,
+            query=f"from:{username}",
+            max_results=10,
+            expansions=["author_id"],
             user_fields=["public_metrics"],
         )
-        logger.info("get_user response: data=%s, errors=%s",
-                    type(resp.data).__name__ if resp.data else None,
-                    getattr(resp, 'errors', None))
-        if resp.data:
-            user = resp.data
+        # Author data is in resp.includes["users"]
+        includes = getattr(resp, "includes", None) or {}
+        users = includes.get("users", [])
+        if users:
+            user = users[0]
             return {
                 "id": str(user.id),
                 "name": user.name,
                 "username": user.username,
                 "public_metrics": user.public_metrics,
             }
-        logger.warning("X API user lookup returned no data for @%s — full response: %s", username, resp)
+        logger.warning("X API user search returned no results for @%s", username)
     except Exception as e:
         logger.error("X API error in get_user_by_username: %s\n%s", e, traceback.format_exc())
     return None

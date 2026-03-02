@@ -139,7 +139,7 @@ async def kol_wallet_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(
             f"Registration saved! Now let's verify your X account.\n\n"
             f"Please tweet the following code from @{x_account}:\n\n"
-            f"Verifying my BrosOnPM KOL account: {code}\n\n"
+            f"Verifying my @BrosOnPM Agency account: {code}\n\n"
             f"Then click 'Verify' below, or /skip to skip verification for now.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Verify", callback_data="reg_verify_check")],
