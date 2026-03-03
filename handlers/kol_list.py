@@ -20,8 +20,9 @@ def _format_kol_line(kol, index: int, admin_view: bool = False) -> str:
     if admin_view and not kol.get("is_active", True):
         status += " [inactive]"
     followers = kol.get("follower_count") or 0
+    x_link = f'<a href="https://x.com/{kol["x_account"]}">@{kol["x_account"]}</a>'
     return (
-        f"{index}. {kol['name']}  —  @{kol['x_account']}"
+        f"{index}. {kol['name']}  —  {x_link}"
         f"  |  {followers:,} followers{status}"
     )
 
@@ -74,7 +75,7 @@ def _detail_view(kol, back_page: int, admin_view: bool = False):
 
     lines = [
         f"KOL Details — {kol['name']}\n",
-        f"X Account: @{kol['x_account']}",
+        f'X Account: <a href="https://x.com/{kol["x_account"]}">@{kol["x_account"]}</a>',
         f"Followers: {followers:,}",
         f"Verified: {verified}",
     ]
@@ -135,7 +136,7 @@ def _get_visible_kols(admin_view: bool):
     kols = get_all_kols()
     if admin_view:
         return kols
-    return [k for k in kols if k.get("is_active", True)]
+    return [k for k in kols if k.get("is_active", True) and k.get("is_verified")]
 
 
 async def kols_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -147,7 +148,7 @@ async def kols_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text, keyboard = _list_page(kols, 0, admin_view)
-    await update.message.reply_text(text, reply_markup=keyboard)
+    await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
 async def kols_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,7 +170,7 @@ async def kols_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         text, keyboard = _list_page(kols, page, admin_view)
         try:
-            await query.edit_message_text(text, reply_markup=keyboard)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception:
             pass  # message unchanged (same page refresh, no new data)
 
@@ -185,7 +186,7 @@ async def kols_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("KOL not found.")
             return
         text, keyboard = _detail_view(kol, back_page, admin_view)
-        await query.edit_message_text(text, reply_markup=keyboard)
+        await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
 
     elif action == "toggle":
         if not admin_view:
@@ -202,7 +203,7 @@ async def kols_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kol = get_kol(telegram_id)
         text, keyboard = _detail_view(kol, back_page, admin_view)
         text = f"KOL {status_text}!\n\n" + text
-        await query.edit_message_text(text, reply_markup=keyboard)
+        await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
 def get_handlers():
