@@ -22,6 +22,10 @@ async def browse_campaigns(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if not kol.get("is_active", True):
+        await update.message.reply_text("Your account has been suspended.")
+        return
+
     campaigns = get_live_campaigns()
     live = [c for c in campaigns if c["status"] == "live"]
 
@@ -76,6 +80,16 @@ async def accept_campaign_callback(update: Update, context: ContextTypes.DEFAULT
             await context.bot.send_message(
                 chat_id=user.id,
                 text="You need to register as a KOL first. Use /start to register.",
+            )
+        except Exception:
+            pass
+        return
+
+    if not kol.get("is_active", True):
+        try:
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="Your account has been suspended.",
             )
         except Exception:
             pass

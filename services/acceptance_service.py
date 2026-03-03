@@ -3,6 +3,7 @@ import logging
 
 from db.connection import get_conn, is_postgres, ph, dict_cursor
 from db import campaign_repo, acceptance_repo
+from db.kol_repo import get_kol
 from services import campaign_service
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,11 @@ def accept_campaign(campaign_id: int, kol_telegram_id: int) -> dict:
     Returns the acceptance dict on success.
     Raises AcceptanceError with user-friendly message on failure.
     """
+    # Check if KOL is banned
+    kol = get_kol(kol_telegram_id)
+    if not kol or not kol.get("is_active", True):
+        raise AcceptanceError("Your account has been suspended.")
+
     # Check if already accepted
     existing = acceptance_repo.get_acceptance(campaign_id, kol_telegram_id)
     if existing:

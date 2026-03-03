@@ -65,6 +65,19 @@ def update_kol_verification(telegram_id, x_user_id, follower_count, is_verified)
     conn.close()
 
 
+def ban_kol(telegram_id):
+    """Set is_active = FALSE for a KOL (ban)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    p = ph()
+    cur.execute(
+        f"UPDATE kols SET is_active = FALSE WHERE telegram_id = {p}",
+        (telegram_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_all_kols():
     conn = get_conn()
     cur = dict_cursor(conn)

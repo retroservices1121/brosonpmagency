@@ -140,6 +140,30 @@ async def get_liking_users(tweet_id: str) -> list[str]:
     return []
 
 
+async def check_tweet_exists(tweet_id: str) -> bool | None:
+    """Check whether a tweet still exists.
+
+    Returns True if it exists, False if confirmed deleted/not found,
+    None if the API call failed (inconclusive — skip to avoid false bans).
+    """
+    if not is_configured() or not await _check_read_access():
+        return None
+    try:
+        resp = await asyncio.to_thread(
+            _get_client().get_tweet,
+            id=tweet_id,
+            tweet_fields=["id"],
+        )
+        return resp.data is not None
+    except Exception as e:
+        err = str(e).lower()
+        # Twitter API returns specific errors for deleted/not-found tweets
+        if "not found" in err or "no data" in err:
+            return False
+        logger.error("X API error checking tweet %s: %s", tweet_id, e)
+        return None
+
+
 def extract_tweet_id(url: str) -> str | None:
     """Extract tweet ID from a twitter.com or x.com URL."""
     match = re.search(r"(?:twitter\.com|x\.com)/\w+/status/(\d+)", url)

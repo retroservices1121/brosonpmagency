@@ -184,6 +184,40 @@ def get_unpaid_verified():
     return [dict(r) for r in rows]
 
 
+def get_recent_verified_with_tweets():
+    """Return verified acceptances from the last 10 days that have a tweet URL.
+
+    Only includes active (non-banned) KOLs. Joins KOL name/x_account and
+    campaign project_name for reporting.
+    """
+    conn = get_conn()
+    cur = dict_cursor(conn)
+    if is_postgres():
+        date_filter = "ca.verified_at >= NOW() - INTERVAL '10 days'"
+    else:
+        date_filter = "ca.verified_at >= datetime('now', '-10 days')"
+    cur.execute(
+        f"""
+        SELECT ca.id, ca.campaign_id, ca.kol_telegram_id, ca.status,
+               ca.submission_tweet_url, ca.payout_status, ca.verified_at,
+               k.name AS kol_name, k.x_account,
+               c.project_name
+        FROM campaign_acceptances ca
+        JOIN kols k ON k.telegram_id = ca.kol_telegram_id
+        JOIN campaigns c ON c.id = ca.campaign_id
+        WHERE ca.status = 'verified'
+          AND ca.submission_tweet_url IS NOT NULL
+          AND ca.submission_tweet_url != ''
+          AND k.is_active = TRUE
+          AND {date_filter}
+        ORDER BY ca.verified_at
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def mark_paid(acceptance_id: int):
     """Mark an acceptance as paid."""
     conn = get_conn()

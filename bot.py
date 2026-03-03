@@ -6,9 +6,10 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from config import TELEGRAM_BOT_TOKEN, ADMIN_TELEGRAM_IDS, ANNOUNCEMENT_CHANNEL_ID
 from db.migrations import run_migrations
-from handlers import registration, campaign_create, campaign_browse, campaign_submit, campaign_dashboard, admin, pricing
-from handlers.common import is_admin
+from handlers import registration, campaign_create, campaign_browse, campaign_submit, campaign_dashboard, admin, pricing, kol_list
+from handlers.common import is_admin, notify_admins
 from services.campaign_service import expire_campaigns
+from services.integrity_service import run_integrity_check
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -25,6 +26,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — Register as KOL or Customer",
         "/help — Show this message",
         "/myid — Show your Telegram ID",
+        "/kols — Browse KOL roster",
         "/cancel — Cancel current operation",
     ]
 
@@ -47,6 +49,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("/admin — Admin panel")
         lines.append("/pricing — Manage service pricing")
         lines.append("/bulkverify — Verify all KOLs via X API")
+        lines.append("/integrity — Check for deleted proof-of-work tweets")
         lines.append("/export — Export data as CSV")
 
     await update.message.reply_text("\n".join(lines))
@@ -74,8 +77,10 @@ async def post_init(application):
         BotCommand("mywork", "View accepted work (KOL)"),
         BotCommand("submit", "Submit proof of work (KOL)"),
         BotCommand("admin", "Admin panel"),
+        BotCommand("kols", "Browse KOL roster"),
         BotCommand("pricing", "Manage pricing (Admin)"),
         BotCommand("bulkverify", "Verify all KOLs via X (Admin)"),
+        BotCommand("integrity", "Check for deleted tweets (Admin)"),
         BotCommand("export", "Export data (Admin)"),
         BotCommand("cancel", "Cancel current operation"),
     ]
@@ -87,6 +92,29 @@ def expire_campaigns_job(context: ContextTypes.DEFAULT_TYPE):
     count = expire_campaigns()
     if count:
         logger.info("Expired %d campaign(s)", count)
+
+
+async def integrity_check_job(context: ContextTypes.DEFAULT_TYPE):
+    """Daily job to check verified tweets for deletions."""
+    logger.info("Running daily tweet integrity check...")
+    result = await run_integrity_check()
+    logger.info(
+        "Integrity check done: %d checked, %d ok, %d deleted, %d errors",
+        result["total"], result["ok"], result["deleted"], result["errors"],
+    )
+    if result["bans"]:
+        lines = ["Tweet Integrity Alert — KOLs Banned\n─────────────────────────────"]
+        for b in result["bans"]:
+            paid_flag = " [PAID]" if b["paid"] else ""
+            lines.append(
+                f"- {b['kol_name']} (@{b['x_account']}){paid_flag}\n"
+                f"  Campaign #{b['campaign_id']}: {b['project_name']}\n"
+                f"  Tweet: {b['tweet_url']}"
+            )
+        text = "\n".join(lines)
+        if len(text) > 4000:
+            text = text[:3950] + f"\n\n... ({len(result['bans'])} total bans)"
+        await notify_admins(context.bot, text)
 
 
 def main():
@@ -125,6 +153,8 @@ def main():
         app.add_handler(handler)
     for handler in admin.get_handlers():
         app.add_handler(handler)
+    for handler in kol_list.get_handlers():
+        app.add_handler(handler)
 
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("myid", myid_command))
@@ -134,6 +164,8 @@ def main():
     if job_queue:
         job_queue.run_repeating(expire_campaigns_job, interval=3600, first=60)
         logger.info("Scheduled hourly campaign expiration check")
+        job_queue.run_repeating(integrity_check_job, interval=86400, first=300)
+        logger.info("Scheduled daily tweet integrity check")
 
     logger.info("Bot started. Press Ctrl+C to stop.")
     app.run_polling()

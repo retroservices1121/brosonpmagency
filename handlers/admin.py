@@ -20,6 +20,7 @@ from handlers.common import (
 from services.campaign_service import activate_campaign, cancel_campaign
 from services.announcement_service import announce_campaign
 from services.verification_service import manually_verify, manually_reject
+from services.integrity_service import run_integrity_check
 from services import x_api
 
 logger = logging.getLogger(__name__)
@@ -361,10 +362,72 @@ async def _run_bulk_verify(bot, chat_id, progress_msg, unverified):
     await bot.send_message(chat_id=chat_id, text=text)
 
 
+@require_admin
+async def integrity_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check recently verified tweets for deletions and ban offenders."""
+    if not x_api.is_configured():
+        await update.message.reply_text("X API is not configured. Cannot run integrity check.")
+        return
+
+    if not await x_api.is_read_available():
+        await update.message.reply_text("X API read access not available. Cannot run integrity check.")
+        return
+
+    progress_msg = await update.message.reply_text(
+        "Starting tweet integrity check...\n"
+        "Checking verified tweets from the last 10 days.\n"
+        "This may take a while due to API rate limits (~9s per tweet)."
+    )
+
+    chat_id = update.effective_chat.id
+    context.application.create_task(
+        _run_integrity_check(context.bot, chat_id, progress_msg),
+        update=update,
+    )
+
+
+async def _run_integrity_check(bot, chat_id, progress_msg):
+    """Background task for tweet integrity check."""
+    async def on_progress(checked, total):
+        await progress_msg.edit_text(
+            f"Integrity check in progress... {checked}/{total} tweets\n"
+            "Checking for deleted proof-of-work tweets."
+        )
+
+    result = await run_integrity_check(progress_callback=on_progress)
+
+    lines = [
+        "Tweet Integrity Check Complete\n"
+        "─────────────────────────────",
+        f"Tweets checked: {result['total']}",
+        f"Still live: {result['ok']}",
+        f"Deleted: {result['deleted']}",
+        f"API errors (skipped): {result['errors']}",
+    ]
+
+    if result["bans"]:
+        lines.append(f"\nKOLs banned ({len(result['bans'])}):")
+        for b in result["bans"]:
+            paid_flag = " [PAID]" if b["paid"] else ""
+            lines.append(
+                f"  - {b['kol_name']} (@{b['x_account']}){paid_flag}\n"
+                f"    Campaign #{b['campaign_id']}: {b['project_name']}"
+            )
+    else:
+        lines.append("\nNo deleted tweets found. All clear!")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:3950] + f"\n\n... ({len(result['bans'])} total bans, list truncated)"
+
+    await bot.send_message(chat_id=chat_id, text=text)
+
+
 def get_handlers():
     return [
         CommandHandler("admin", admin_panel),
         CommandHandler("export", export),
         CommandHandler("bulkverify", bulk_verify),
+        CommandHandler("integrity", integrity_check),
         CallbackQueryHandler(admin_callback, pattern=r"^adm:"),
     ]

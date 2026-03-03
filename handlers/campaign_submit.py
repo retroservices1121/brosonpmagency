@@ -31,6 +31,10 @@ async def submit_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return ConversationHandler.END
 
+    if not kol.get("is_active", True):
+        await update.message.reply_text("Your account has been suspended.")
+        return ConversationHandler.END
+
     acceptances = get_acceptances_for_kol(user.id)
     pending = [a for a in acceptances if a["status"] == "accepted"]
 
